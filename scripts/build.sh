@@ -16,18 +16,30 @@ SRC="${SRC:-/src}"
 WORK="${WORK:-/work}"
 JOBS="${JOBS:-$(nproc)}"
 
+# 从第一行起就把全部输出落到宿主机挂载目录，任何早期失败（apt / docker / repo）
+# 都能留下日志：workflow 里 objects.githubusercontent 不可达，日志是我们唯一的排障入口。
+mkdir -p "$WORK/out"
+exec > >(tee "$WORK/out/build.log") 2>&1
+trap 'rc=$?; echo "== build.sh 退出码 $rc =="; [ "$rc" -ne 0 ] && echo "（失败前最后 5 行见上）"' EXIT
+
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+
+echo "host: $(uname -a)"
+echo "date: $(date -u +%FT%TZ)"
+df -h / /work 2>/dev/null || true
 
 # ---------------------------------------------------------------
 # 1. apt 源（bionic 已进 old-releases，先试 archive，失败自动回退）
 # ---------------------------------------------------------------
 log "准备 apt 源"
-if ! apt-get update -qq 2>/dev/null; then
-    echo "archive.ubuntu.com 不可用，切换到 old-releases.ubuntu.com"
+echo "--- 当前 sources.list ---"
+cat /etc/apt/sources.list
+if ! apt-get update -qq; then
+    echo "archive 不可用，切换到 old-releases.ubuntu.com"
     sed -i -e 's@//archive\.ubuntu\.com@//old-releases.ubuntu.com@g' \
            -e 's@//security\.ubuntu\.com@//old-releases.ubuntu.com@g' \
            /etc/apt/sources.list
-    apt-get update -qq
+    apt-get update || { echo "old-releases 也失败"; exit 11; }
 fi
 
 # ---------------------------------------------------------------
@@ -104,16 +116,12 @@ lunch omni_ud710_2h10-eng
 
 log "mka recoveryimage -j$JOBS"
 set +e
-mka recoveryimage -j"$JOBS" 2>&1 | tee /tmp/build.log
-BUILD_RC=${PIPESTATUS[0]}
+mka recoveryimage -j"$JOBS"
+BUILD_RC=$?
 set -e
-
-mkdir -p "$WORK/out"
-cp -f /tmp/build.log "$WORK/out/build.log" || true
 
 if [ "$BUILD_RC" -ne 0 ]; then
     echo "构建失败，退出码 $BUILD_RC"
-    tail -80 /tmp/build.log
     exit "$BUILD_RC"
 fi
 

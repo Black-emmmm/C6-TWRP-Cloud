@@ -54,6 +54,10 @@ jobs:
         env:
           TWRP_BRANCH: ${{ github.event.inputs.twrp_branch || 'twrp-9.0' }}
         run: |
+          set -o pipefail
+          mkdir -p out
+          # 宿主机侧也 tee 一份：万一 docker 起不来（镜像拉取失败等），build.sh 的
+          # 自己的 tee 就没机会执行，这里兜底，保证 artifacts 分支总有日志
           docker run --rm \
             --name twrp-c6-build \
             -v "$PWD":/work \
@@ -61,7 +65,7 @@ jobs:
             -e TWRP_BRANCH="$TWRP_BRANCH" \
             -e JOBS="$(nproc)" \
             ubuntu:18.04 \
-            bash scripts/build.sh
+            bash scripts/build.sh 2>&1 | tee -a out/build.log
 
       - name: 修正产物属主
         if: always()
