@@ -46,6 +46,12 @@ export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 export PATH="$JAVA_HOME/bin:$PATH"
 java -version 2>&1 | head -2
 
+# AOSP 9 的部分 host 工具仍然调 python2（repo / 部分 build 脚本）
+if ! command -v python >/dev/null 2>&1; then
+    ln -sf /usr/bin/python2.7 /usr/bin/python
+fi
+python --version 2>&1 | head -1 || true
+
 # ---------------------------------------------------------------
 # 3. repo 工具
 # ---------------------------------------------------------------
@@ -78,11 +84,11 @@ repo sync -c -j"$JOBS" --force-sync --no-clone-bundle --no-tags --optimized-fetc
 # ---------------------------------------------------------------
 # 5. 放入设备树
 # ---------------------------------------------------------------
-log "安装设备树 device/iflytek/c6"
-rm -rf "$SRC/device/iflytek/c6"
-mkdir -p "$SRC/device/iflytek"
-cp -a "$WORK/device/iflytek/c6" "$SRC/device/iflytek/c6"
-ls -l "$SRC/device/iflytek/c6"
+log "安装设备树 device/sprd/ud710_2h10"
+rm -rf "$SRC/device/sprd/ud710_2h10"
+mkdir -p "$SRC/device/sprd"
+cp -a "$WORK/device/sprd/ud710_2h10" "$SRC/device/sprd/ud710_2h10"
+ls -l "$SRC/device/sprd/ud710_2h10"
 
 # ---------------------------------------------------------------
 # 6. 编译
@@ -90,12 +96,11 @@ ls -l "$SRC/device/iflytek/c6"
 cd "$SRC"
 export ALLOW_MISSING_DEPENDENCIES=true
 export LC_ALL=C
-export TARGET_RELEASE_OVERRIDES= 2>/dev/null || true
 
-log "envsetup + lunch twrp_c6-eng"
+log "envsetup + lunch omni_ud710_2h10-eng"
 # shellcheck disable=SC1091
 source build/envsetup.sh
-lunch twrp_c6-eng
+lunch omni_ud710_2h10-eng
 
 log "mka recoveryimage -j$JOBS"
 set +e
@@ -112,10 +117,10 @@ if [ "$BUILD_RC" -ne 0 ]; then
     exit "$BUILD_RC"
 fi
 
-IMG="$SRC/out/target/product/c6/recovery.img"
+IMG="$SRC/out/target/product/ud710_2h10/recovery.img"
 if [ ! -f "$IMG" ]; then
     echo "构建返回成功但没找到 $IMG"
-    find "$SRC/out/target/product/c6" -maxdepth 1 -name '*.img' -ls || true
+    find "$SRC/out/target/product/ud710_2h10" -maxdepth 1 -name '*.img' -ls || true
     exit 1
 fi
 
@@ -123,7 +128,7 @@ cp -f "$IMG" "$WORK/out/recovery.img"
 cd "$WORK/out"
 sha256sum recovery.img > recovery.img.sha256
 {
-    echo "device:   iflytek/c6 (ud710_2h10)"
+    echo "device:   sprd/ud710_2h10 (讯飞 C6)"
     echo "twrp:     $TWRP_BRANCH"
     echo "built:    $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "size:     $(stat -c%s recovery.img) bytes"

@@ -1,0 +1,52 @@
+# TWRP recovery.fstab — ud710_2h10 (讯飞 C6 / CB-C6-STU)
+# 基线：C6 官方 recovery ramdisk 的 /etc/recovery.fstab + T10 生成的树，合并后做两处关键修正
+#
+# 修正 1：设备路径统一改用 /dev/block/by-name/* 符号链接
+#   原树用 71900000.ufs，C6 官方固件用 71400000.sdio，两台同板不同存储控制器。
+#   by-name 由 ueventd 依据 PARTNAME 自动创建（C6 的 sepolicy file_contexts 里
+#   已有 /dev/block/by-name/boot|recovery|userdata 条目），两种控制器通吃。
+#
+# 修正 2：system-as-root 用 /system_root 挂载点（twrp-9.0 约定），
+#   原树写的 "/" 在 TWRP 9 里不会被识别成系统根，导致刷 GSI 时找不到 system。
+#
+# 挂载点        fstype   设备
+
+# ---------- 引导链 ----------
+/boot          emmc     /dev/block/by-name/boot             flags=display="Boot"
+/recovery      emmc     /dev/block/by-name/recovery         flags=display="Recovery"
+/dtb           emmc     /dev/block/by-name/dtb              flags=display="DTB"
+/dtbo          emmc     /dev/block/by-name/dtbo             flags=display="DTBO"
+/vbmeta        emmc     /dev/block/by-name/vbmeta           flags=display="VBMeta"
+/vbmeta_bak    emmc     /dev/block/by-name/vbmeta_bak       flags=display="VBMeta Backup"
+/misc          emmc     /dev/block/by-name/misc             flags=display="Misc"
+/logo          emmc     /dev/block/by-name/logo             flags=display="Logo"
+/fbootlogo     emmc     /dev/block/by-name/fbootlogo        flags=display="Fastboot Logo"
+/persist       ext4     /dev/block/by-name/persist          flags=display="Persist"
+
+# ---------- 系统分区（system-as-root）----------
+/system_root   ext4     /dev/block/by-name/system           flags=display="System"
+/vendor        ext4     /dev/block/by-name/vendor           flags=display="Vendor"
+/product       ext4     /dev/block/by-name/product          flags=display="Product"
+/cache         ext4     /dev/block/by-name/cache            flags=display="Cache"
+
+# ---------- 数据 ----------
+# FBE: 官方 fileencryption=aes-256-xts + encryptable=footer，footer 在分区尾部 20480 字节
+/data          f2fs     /dev/block/by-name/userdata         length=-20480    flags=display="Data"
+/mnt/vendor    ext4     /dev/block/by-name/prodnv           flags=display="ProductNV"
+
+# ---------- 外置存储 ----------
+/external_sd   vfat     /dev/block/mmcblk1p1                flags=display="MicroSD";removable;storage
+/usb-otg       vfat     /dev/block/sda1                     flags=display="USB OTG";removable;storage
+
+# ---------- 5G NR 基带（只备份）----------
+/nrboot        emmc     /dev/block/by-name/nr_boot          flags=display="NR Boot"
+/nrmodem       emmc     /dev/block/by-name/nr_modem         flags=display="NR Modem"
+/wcnmodem      emmc     /dev/block/by-name/wcnmodem         flags=display="WCN Modem"
+/gnssmodem     emmc     /dev/block/by-name/gnssmodem        flags=display="GNSS Modem"
+
+# ---------- 引导链备份分区 ----------
+/spl           emmc     /dev/block/mmcblk0boot0             flags=display="SPL"
+/spl_bk        emmc     /dev/block/mmcblk0boot1             flags=display="SPL Backup"
+/uboot         emmc     /dev/block/by-name/uboot            flags=display="U-Boot"
+/uboot_bak     emmc     /dev/block/by-name/uboot_bak        flags=display="U-Boot Backup"
+/tos_bak       emmc     /dev/block/by-name/trustos_bak      flags=display="TOS Backup"
