@@ -1,0 +1,5 @@
+device:   sprd/ud710_2h10 (讯飞 C6)
+twrp:     twrp-9.0
+built:    2026-10-25T06:33:20Z
+size:     31770624 bytes
+md5:      b056f4b21e78f94c0061d23bcea9b8dc
