@@ -109,10 +109,15 @@ cd "$SRC"
 export ALLOW_MISSING_DEPENDENCIES=true
 export LC_ALL=C
 
+# AOSP 9 的 envsetup.sh / mka 大量引用未定义变量（例如 line 753 的 TOP），
+# 在 `set -u` 下会直接 unbound variable 退出 → 从这里开始关掉 nounset。
+set +u
+
 log "envsetup + lunch omni_ud710_2h10-eng"
 # shellcheck disable=SC1091
 source build/envsetup.sh
 lunch omni_ud710_2h10-eng
+echo "TARGET_PRODUCT=${TARGET_PRODUCT:-?} VARIANT=${TARGET_BUILD_VARIANT:-?} OUT=${OUT:-?}"
 
 log "mka recoveryimage -j$JOBS"
 set +e
