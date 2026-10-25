@@ -1,0 +1,44 @@
+# TWRP recovery.fstab — iFLYTEK CB-C6-STU (ud710_2h10)
+# 由官方 recovery ramdisk 的 /etc/recovery.fstab (v2) 转写为 TWRP 9 的 v1 语法
+# 分区名已与官方 fstab / sepolicy contexts 逐一核对
+#
+# 挂载点        fstype   设备路径(展锐 by-name)
+
+/boot          emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/boot
+/recovery      emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/recovery
+/dtb           emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/dtb
+/dtbo          emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/dtbo
+/vbmeta        emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/vbmeta
+/vbmeta_bak    emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/vbmeta_bak
+/misc          emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/misc
+/persist       ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/persist
+/logo          emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/logo
+/fbootlogo     emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/fbootlogo
+
+# 系统分区（system-as-root → TWRP 挂 /system_root，/system 指向其 system/ 子目录）
+# 注意：非 A/B 设备，绝对不能加 slotselect（否则会去找 _a/_b 后缀）
+/system_root   ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/system
+/system        ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/system
+/vendor        ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/vendor
+/product       ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/product
+/cache         ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/cache
+
+# userdata: f2fs + FBE(aes-256-xts)。length 保留 crypto footer 区域
+/data          f2fs     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/userdata    length=-20480
+/mnt/vendor    ext4     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/prodnv
+
+# 外置 SD / OTG
+/external_sd   vfat     /dev/block/mmcblk1p1
+/usb_storage   vfat     /dev/block/sda1    flags=display="USB Storage";removable;storage
+
+# 5G NR 基带分区（只备份，勿动）
+/nrboot        emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/nr_boot
+/nrmodem       emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/nr_modem
+/wcnmodem      emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/wcnmodem
+
+# 引导链备份分区
+/spl           emmc     /dev/block/mmcblk0boot0
+/spl_bk        emmc     /dev/block/mmcblk0boot1
+/uboot         emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/uboot
+/uboot_bak     emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/uboot_bak
+/tos_bak       emmc     /dev/block/platform/soc/soc:ap-apb/71400000.sdio/by-name/trustos_bak

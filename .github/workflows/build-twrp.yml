@@ -1,0 +1,96 @@
+name: Build TWRP (iFLYTEK C6)
+
+on:
+  workflow_dispatch:
+    inputs:
+      twrp_branch:
+        description: 'minimal-manifest 分支'
+        required: false
+        default: 'twrp-9.0'
+        type: choice
+        options:
+          - twrp-9.0
+  push:
+    branches: [main]
+    paths:
+      - 'device/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+
+concurrency:
+  group: twrp-c6-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: TWRP recovery.img
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - name: 检出设备树
+        uses: actions/checkout@v4
+
+      - name: 释放磁盘空间
+        run: |
+          echo "== 清理前 =="; df -h /
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/share/swift \
+            /opt/microsoft \
+            /usr/local/.ghcup
+          sudo apt-get clean
+          docker system prune -af || true
+          echo "== 清理后 =="; df -h /
+
+      - name: 在 ubuntu:18.04 容器内构建
+        env:
+          TWRP_BRANCH: ${{ github.event.inputs.twrp_branch || 'twrp-9.0' }}
+        run: |
+          docker run --rm \
+            --name twrp-c6-build \
+            -v "$PWD":/work \
+            -w /work \
+            -e TWRP_BRANCH="$TWRP_BRANCH" \
+            -e JOBS="$(nproc)" \
+            ubuntu:18.04 \
+            bash scripts/build.sh
+
+      - name: 修正产物属主
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" out || true
+
+      - name: 构建摘要
+        if: always()
+        run: |
+          echo '### TWRP C6 构建结果' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -lh out/ 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || echo '无产物' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat out/build-info.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          df -h / >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传 recovery.img
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twrp-c6-recovery
+          path: |
+            out/recovery.img
+            out/recovery.img.sha256
+            out/build-info.txt
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: 失败时上传日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-failed
+          path: out/build.log
+          retention-days: 7
+          if-no-files-found: warn
