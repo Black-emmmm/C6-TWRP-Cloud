@@ -21,6 +21,9 @@ concurrency:
   group: twrp-c6-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: TWRP recovery.img
@@ -62,17 +65,57 @@ jobs:
 
       - name: 修正产物属主
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" out || true
+        run: sudo chown -R "$(id -u):$(id -g)" out 2>/dev/null || true
 
       - name: 构建摘要
         if: always()
         run: |
-          echo '### TWRP C6 构建结果' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          ls -lh out/ 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || echo '无产物' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat out/build-info.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
-          df -h / >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '### TWRP C6 构建结果'
+            echo '```'
+            ls -lh out/ 2>/dev/null || echo '无产物'
+            echo '```'
+            cat out/build-info.txt 2>/dev/null || true
+            df -h /
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 本机网络下 objects.githubusercontent.com 不可达 → Artifact/日志 都下不动。
+      # 所以把日志（和成功时的镜像）推回仓库的 artifacts 分支，外部可直接取。
+      - name: 回传日志与产物到 artifacts 分支
+        if: always()
+        run: |
+          set +e
+          REPO_URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          WORK="$RUNNER_TEMP/pub"
+          rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
+          git init -q; git checkout -q -b artifacts
+          git config user.name  "c6-cloud-bot"
+          git config user.email "c6-cloud-bot@users.noreply.github.com"
+
+          # 日志：优先 build.sh 的完整日志，其次 runner 上残留
+          if [ -f "$GITHUB_WORKSPACE/out/build.log" ]; then
+            cp "$GITHUB_WORKSPACE/out/build.log" build.log
+          else
+            echo "build.sh 未产出日志（可能很早就失败）" > build.log
+            tail -200 "$GITHUB_WORKSPACE/out/*.log" >> build.log 2>/dev/null
+          fi
+
+          if [ -f "$GITHUB_WORKSPACE/out/recovery.img" ]; then
+            cp "$GITHUB_WORKSPACE/out/recovery.img" recovery.img
+            cp "$GITHUB_WORKSPACE/out/recovery.img.sha256" . 2>/dev/null
+            cp "$GITHUB_WORKSPACE/out/build-info.txt" . 2>/dev/null
+          fi
+
+          {
+            echo "run: ${{ github.run_id }}"
+            echo "status: ${{ job.status }}"
+            echo "twrp: ${{ github.event.inputs.twrp_branch || 'twrp-9.0' }}"
+            echo "date: $(date -u +%FT%TZ)"
+          } > RUN_INFO.txt
+
+          git add -A
+          git -c user.name=bot -c user.email=bot@local commit -qm "run ${{ github.run_id }} (${{ job.status }})"
+          git push -f "$REPO_URL" artifacts
 
       - name: 上传 recovery.img
         if: success()
@@ -85,12 +128,3 @@ jobs:
             out/build-info.txt
           retention-days: 14
           if-no-files-found: error
-
-      - name: 失败时上传日志
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log-failed
-          path: out/build.log
-          retention-days: 7
-          if-no-files-found: warn
